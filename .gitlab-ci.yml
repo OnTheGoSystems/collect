@@ -1,0 +1,46 @@
+---
+image: registry.otgs.work/infrastructure/docker-images/wptest:7.2
+
+before_script:
+  - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+  - eval $(ssh-agent -s)
+  - bash -c 'ssh-add <(echo "$SSH_PRIVATE_KEY")'
+  - '[[ -f /.dockerenv ]] && mkdir -p ~/.ssh && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  - 'composer install --quiet'
+
+stages:
+  - quality
+  - test
+
+Standards <PHP>:
+  stage: quality
+  when: always
+  tags:
+    - autoscale
+  script:
+    - ./vendor/bin/phpcs -s -p --colors --report-full --report-summary ./
+
+Compatibility <PHP>:
+  stage: quality
+  when: always
+  tags:
+    - autoscale
+  script:
+    - ./vendor/bin/phpcs --standard=./phpcs.compatibility.xml -s -p --colors --report-full --report-summary ./
+
+Duplication <PHP>:
+  stage: quality
+  when: always
+  tags:
+    - autoscale
+  script:
+    - ./vendor/bin/phpcpd --exclude=tests --exclude=vendor -- ./
+
+Unit <PHP>:
+  stage: test
+  when: always
+  image: registry.otgs.work/infrastructure/docker-images/otgs/phpunit:5.7
+  tags:
+    - autoscale
+  script:
+    - ./vendor/bin/phpunit --fail-on-warning
